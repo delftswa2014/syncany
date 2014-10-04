@@ -25,7 +25,7 @@ public abstract class SyncExternalEvent extends ExternalEvent {
 	private String root;
 
 	public SyncExternalEvent() {
-		// Nothing.
+		// Nothing
 	}
 	
 	public SyncExternalEvent(String root) {

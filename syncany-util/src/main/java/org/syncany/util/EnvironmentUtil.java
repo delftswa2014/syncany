@@ -46,7 +46,7 @@ public class EnvironmentUtil {
 		return operatingSystem == OperatingSystem.WINDOWS;
 	}	
 	
-	public static boolean isOSX() {
+	public static boolean isMacOSX() {
 		return System.getProperty("os.name").toUpperCase().contains("OS X");
 	}
 
