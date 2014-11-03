@@ -18,6 +18,13 @@
 package org.syncany.plugins.transfer;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -154,32 +161,91 @@ public class RemoteTransaction {
 	}
 
 	private void uploadAndMoveToTempLocation() throws StorageException {
-		TransactionStats stats = gatherTransactionStats();
-		int uploadFileIndex = 0;
+		TransactionStats uploadStatistics = gatherTransactionStats();
+		List<Runnable> uploadThreads = fillUploadTempFileThreads(uploadStatistics);
 
-		for (ActionTO action : transactionTO.getActions()) {
-			RemoteFile tempRemoteFile = action.getTempRemoteFile();
-
-			if (action.getType().equals(ActionTO.TYPE_UPLOAD)) {
-				File localFile = action.getLocalTempLocation();
-				long localFileSize = localFile.length();
-
-				eventBus.post(new UpUploadFileInTransactionSyncExternalEvent(config.getLocalDir().getAbsolutePath(), ++uploadFileIndex,
-						stats.totalUploadFileCount, localFileSize, stats.totalUploadSize));
-
-				logger.log(Level.INFO, "- Uploading {0} to temp. file {1} ...", new Object[] { localFile, tempRemoteFile });
-				transferManager.upload(localFile, tempRemoteFile);
+		// Add tasks to worker thread and run
+		ExecutorService workerPool =  Executors.newFixedThreadPool(2);
+		
+		for (Runnable workerThread : uploadThreads) {	
+			workerPool.execute(workerThread);
+		}		
+		
+		// Await termination
+		workerPool.shutdown();
+		
+		while (true) {
+			try {
+				Boolean uploadFinished = workerPool.awaitTermination(10, TimeUnit.SECONDS);
+				
+				if (uploadFinished) {
+					logger.log(Level.INFO, "Upload finished.");
+					break;
+				}
+				else {
+					logger.log(Level.INFO, "Waited 120 seconds for pool, continuing.");
+				}
 			}
-			else if (action.getType().equals(ActionTO.TYPE_DELETE)) {
-				RemoteFile remoteFile = action.getRemoteFile();
+			catch (InterruptedException e) {
+				logger.log(Level.INFO, "Executor wait loop was interrupted.");
+				throw new StorageException("Upload interrupted.", e);
+			}
+		}
+		
+		// Upload failed?		
+		if (uploadStatistics.uploadFailed.get()) {
+			throw uploadStatistics.uploadException;
+		}
+	}
 
-				try {
-					logger.log(Level.INFO, "- Moving {0} to temp. file {1} ...", new Object[] { remoteFile, tempRemoteFile });
-					transferManager.move(remoteFile, tempRemoteFile);
+	private List<Runnable> fillUploadTempFileThreads(final TransactionStats uploadStatistics) {
+		List<Runnable> uploadThreads = new ArrayList<>();
+
+		for (final ActionTO action : transactionTO.getActions()) {
+			uploadThreads.add(new Runnable() {
+				@Override
+				public void run() {	
+					if (uploadStatistics.uploadFailed.get()) {
+						logger.log(Level.INFO, "- Skipping " + action + ", because upload failed earlier.");
+					}
+					else {
+						try {
+							uploadAndMoveToTemoLocation(action, uploadStatistics);
+						}
+						catch (StorageException e) {
+							uploadStatistics.uploadFailed.set(true);
+							uploadStatistics.uploadException = e;
+						}
+					}
 				}
-				catch (StorageMoveException e) {
-					logger.log(Level.INFO, "  -> FAILED (don't care!), because the remoteFile does not exist: " + remoteFile);
-				}
+			});
+		}
+		
+		return uploadThreads;
+	}
+
+	private void uploadAndMoveToTemoLocation(ActionTO action, TransactionStats stats) throws StorageException {
+		RemoteFile tempRemoteFile = action.getTempRemoteFile();
+
+		if (action.getType().equals(ActionTO.TYPE_UPLOAD)) {
+			File localFile = action.getLocalTempLocation();
+			long localFileSize = localFile.length();
+
+			eventBus.post(new UpUploadFileInTransactionSyncExternalEvent(config.getLocalDir().getAbsolutePath(), stats.uploadFileIndex.incrementAndGet(),
+					stats.totalUploadFileCount, localFileSize, stats.totalUploadSize));
+
+			logger.log(Level.INFO, "- Uploading {0} to temp. file {1} ...", new Object[] { localFile, tempRemoteFile });
+			transferManager.upload(localFile, tempRemoteFile);
+		}
+		else if (action.getType().equals(ActionTO.TYPE_DELETE)) {
+			RemoteFile remoteFile = action.getRemoteFile();
+
+			try {
+				logger.log(Level.INFO, "- Moving {0} to temp. file {1} ...", new Object[] { remoteFile, tempRemoteFile });
+				transferManager.move(remoteFile, tempRemoteFile);
+			}
+			catch (StorageMoveException e) {
+				logger.log(Level.INFO, "  -> FAILED (don't care!), because the remoteFile does not exist: " + remoteFile);
 			}
 		}
 	}
@@ -238,7 +304,10 @@ public class RemoteTransaction {
 	}
 
 	private class TransactionStats {
-		private long totalUploadSize;
-		private int totalUploadFileCount;
+		private long totalUploadSize = 0;
+		private int totalUploadFileCount = 0;
+		private AtomicInteger uploadFileIndex = new AtomicInteger(0);
+		private AtomicBoolean uploadFailed = new AtomicBoolean(false);
+		private StorageException uploadException = null;
 	}
 }
