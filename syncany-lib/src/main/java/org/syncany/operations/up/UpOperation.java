@@ -270,7 +270,6 @@ public class UpOperation extends AbstractTransferOperation {
 
 				// Add multichunks to transaction
 				logger.log(Level.INFO, "Uploading new multichunks ...");
-				// [NOTE] This call adds newly changed chunks to a "RemoteTransaction", so they can be uploaded later.
 				addMultiChunksToTransaction(remoteTransaction, databaseVersion.getMultiChunks());
 			}
 			else {
@@ -278,16 +277,12 @@ public class UpOperation extends AbstractTransferOperation {
 			}
 
 			// Create delta database and commit transaction
-			// [NOTE] The information about file changes is written to disk to locally "commit" the transaction. This
-			// enables Syncany to later resume the transaction if it is interrupted before completion.
 			writeAndAddDeltaDatabase(remoteTransaction, databaseVersion, resuming);
 
 			// This thread is to be run when the transaction is interrupted for connectivity reasons. It will serialize
 			// the transaction and metadata in memory such that the transaction can be resumed later.
 			Thread writeResumeFilesShutDownHook = createAndAddShutdownHook(remoteTransaction, databaseVersion);
 
-			// [NOTE] This performs the actual sync to the remote. It is executed synchronously. Only after the changes
-			// are confirmed to have been safely pushed to the remote, will the transaction be marked as complete.
 			if (!detectedFailure) {
 				boolean committingFailed = true;
 				try {
@@ -344,23 +339,18 @@ public class UpOperation extends AbstractTransferOperation {
 	private TransactionRemoteFile attemptResumeTransactionRemoteFile() throws StorageException, BlockingTransfersException {
 		TransactionRemoteFile transactionRemoteFile = null;
 
-		// [NOTE] They look for the matching transaction on the remote.
 		List<TransactionRemoteFile> transactions = transferManager.getTransactionsByClient(config.getMachineName());
 
-		// [NOTE] If there are blocking transactions, they stop completely.
-		// Not sure yet what these blocking structures are.
 		if (transactions == null) {
 			// We have blocking transactions
 			stopBecauseOfBlockingTransactions();
 			throw new BlockingTransfersException();
 		}
 
-		// [NOTE] There is no sign of the transaction on the remote. Clean up the local transaction.
 		if (transactions.size() != 1) {
 			logger.log(Level.INFO, "Unable to find (unique) transactionRemoteFile. Not resuming.");
 			transferManager.clearResumableTransactions();
 		}
-		// [NOTE] Remote transaction file found.
 		else {
 			transactionRemoteFile = transactions.get(0);
 		}
