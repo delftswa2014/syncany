@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Level;
@@ -214,29 +215,31 @@ public class UpOperation extends AbstractTransferOperation {
 	}
 
 	/**
-	 *	Transfers the given {@link DatabaseVersion} objects to the remote.
-	 *	Each {@link DatabaseVersion} will be transferred in its own {@link RemoteTransaction} object.
+	 * Transfers the given {@link DatabaseVersion} objects to the remote.
+	 * Each {@link DatabaseVersion} will be transferred in its own {@link RemoteTransaction} object.
 	 *
-	 *	@param databaseVersions The {@link DatabaseVersion} objects to send to the remote.
+	 * @param databaseVersionQueue The queue containing the {@link DatabaseVersion} objects to transfer.
+	 * @return The number of total transactions that were conducted.
 	 */
 	private int executeTransactions(BlockingQueue<DatabaseVersion> databaseVersionQueue) throws Exception {
 		return executeTransactions(databaseVersionQueue, null, null);
 	}
 
 	/**
-	 *	Transfers the given {@link DatabaseVersion} objects to the remote.
-	 *	Each {@link DatabaseVersion} will be transferred in its own {@link RemoteTransaction} object.
+	 * Transfers the given {@link DatabaseVersion} objects to the remote.
+	 * Each {@link DatabaseVersion} will be transferred in its own {@link RemoteTransaction} object.
 	 *	
-	 *	This method resumes an interrupted sequence of earlier transactions.
-	 *	It expects the {@link DatabaseVersion} and {@link RemoteTransaction} files to be in the same order as they were originally generated.
-	 *	The first {@link DatabaseVersion} and {@link RemoteTransaction} objects should match the interrupted transaction.
+	 * This method resumes an interrupted sequence of earlier transactions.
+	 * It expects the {@link DatabaseVersion} and {@link RemoteTransaction} files to be in the same order as they were originally generated.
+	 * The first {@link DatabaseVersion} and {@link RemoteTransaction} objects should match the interrupted transaction.
 	 *
-	 *	The assumption is that the given {@link RemoteTransaction} objects match the given {@link DatabaseVersion} objects.
-	 *	The given {@link TransactionRemoteFile} corresponds to the file on the remote from the interrupted transaction.
+	 * The assumption is that the given {@link RemoteTransaction} objects match the given {@link DatabaseVersion} objects.
+	 * The given {@link TransactionRemoteFile} corresponds to the file on the remote from the interrupted transaction.
 	 *
-	 *	@param databaseVersionQueue The {@link DatabaseVersion} objects to send to the remote.
-	 *	@param remoteTransactionsToResume {@link RemoteTransaction} objects that correspond to the given {@link DatabaseVersion} objects.
-	 *	@param transactionRemoteFileToResume The file on the remote that was used for the specific transaction that was interrupted.
+	 * @param databaseVersionQueue The {@link DatabaseVersion} objects to send to the remote.
+	 * @param remoteTransactionsToResume {@link RemoteTransaction} objects that correspond to the given {@link DatabaseVersion} objects.
+	 * @param transactionRemoteFileToResume The file on the remote that was used for the specific transaction that was interrupted.
+	 * @return The number of total transactions that were conducted.
 	 */
 	private int executeTransactions(BlockingQueue<DatabaseVersion> databaseVersionQueue, Iterator<RemoteTransaction> remoteTransactionsToResume,
 			TransactionRemoteFile transactionRemoteFileToResume)
@@ -372,9 +375,10 @@ public class UpOperation extends AbstractTransferOperation {
 	}
 
 	/**
-	 * This method creates a Thread, which serializes the {@link remoteTransaction} in the state at the time the thread is run,
+	 * This method creates a Thread, which serializes the {@link RemoteTransaction} in the state at the time the thread is run,
 	 * as well as the {@link DatabaseVersion} that contains the metadata about what is uploaded in this transaction.
-	 *
+	 * 
+	 * @param remoteTransaction The transaction to which to attach the hook.
 	 * @param newDatabaseVersion DatabaseVersion that contains everything that should be locally saved when current transaction is resumed.
 	 *
 	 * @return Thread which is attached as a shutdownHook.
@@ -425,7 +429,7 @@ public class UpOperation extends AbstractTransferOperation {
 	 *  <li>If remote changes exist => Should Down first.</li>
 	 * </ul>
 	 *
-	 * @returns boolean true if Up can and should be done, false otherwise.
+	 * @return boolean true if Up can and should be done, false otherwise.
 	 */
 	private boolean checkPreconditions() throws Exception {
 		// Find local changes
@@ -477,7 +481,7 @@ public class UpOperation extends AbstractTransferOperation {
 	 * This method takes the metadata that is to be uploaded, loads it into a {@link MemoryDatabase} and serializes
 	 * it to a file. If this is not a resumption of a previous transaction, this file is added to the transaction.
 	 * Finally, databaseversions that are uploaded are remembered as known, such that they are not downloaded in future Downs.
-	 *
+	 * 
 	 * @param newDatabaseVersion {@link DatabaseVersion} containing all metadata that would be locally persisted if the transaction succeeds.
 	 * @param resuming boolean indicating if the current transaction is in the process of being resumed.
 	 */

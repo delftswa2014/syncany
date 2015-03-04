@@ -117,6 +117,20 @@ public class Indexer {
 		return databaseVersionQueue.poll();
 	}
 
+	/**
+	 * This method implements the index/deduplication functionality of Syncany. It uses a {@link Deduper}
+	 * to break files down, compares them to the local database and creates new {@link DatabaseVersion}
+	 * objects as a result. In contrast to the other index method, this one creates multiple {@link DatabaseVersion}
+	 * objects. These objects are passed to the {@link IndexerListener}.
+	 * 
+	 * <p>Depending on what has changed, the new database version will contain new instances of 
+	 * {@link PartialFileHistory}, {@link FileVersion}, {@link FileContent}, {@link ChunkEntry} and 
+	 * {@link MultiChunkEntry}.
+	 * 
+	 * @param files List of files to be deduplicated
+	 * @param indexerListener The listener that responds to 
+	 * @throws IOException If the chunking/deduplication cannot read/process any of the files
+	 */
 	public void index(List<File> files, IndexerListener indexerListener)
 			throws IOException {
 		// Load file history cache

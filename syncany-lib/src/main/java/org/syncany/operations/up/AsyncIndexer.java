@@ -17,13 +17,11 @@ public class AsyncIndexer implements Runnable {
 	private final Indexer indexer;
 	private final List<File> files;
 	private final IndexerListener indexerListener;
-	private boolean done;
 
 	public AsyncIndexer(Config config, Deduper deduper, List<File> files, Queue<DatabaseVersion> queue) {
 		this.files = files;
 		this.indexerListener = new IndexerListener(queue);
 		this.indexer = new Indexer(config, deduper);
-		this.done = false;
 	}
 
 	@Override
@@ -37,7 +35,6 @@ public class AsyncIndexer implements Runnable {
 		}
 		// Signal end-of-stream.
 		indexerListener.onNewDatabaseVersion(null);
-		this.done = true;
 	}
 
 }
