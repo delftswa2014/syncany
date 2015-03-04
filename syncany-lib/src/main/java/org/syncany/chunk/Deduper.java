@@ -43,11 +43,18 @@ import org.syncany.database.MultiChunkEntry.MultiChunkId;
  * @see <a href="http://blog.philippheckel.com/2013/05/20/minimizing-remote-storage-usage-and-synchronization-time-using-deduplication-and-multichunking-syncany-as-an-example/">Blog post: Minimizing remote storage usage and synchronization time using deduplication and multichunking: Syncany as an example</a>
  * @author Philipp C. Heckel <philipp.heckel@gmail.com>
  */
-public class Deduper {	
+public class Deduper {
 	private Chunker chunker;
 	private MultiChunker multiChunker;
 	private Transformer transformer;
 	private long maxTotalSize;
+
+	public Deduper(Chunker chunker, MultiChunker multiChunker, Transformer transformer) {
+		this.chunker = chunker;
+		this.multiChunker = multiChunker;
+		this.transformer = transformer;
+		this.maxTotalSize = Long.MAX_VALUE;
+	}
 
 	public Deduper(Chunker chunker, MultiChunker multiChunker, Transformer transformer, long maxTotalSize) {
 		this.chunker = chunker;
@@ -55,7 +62,7 @@ public class Deduper {
 		this.transformer = transformer;
 		this.maxTotalSize = maxTotalSize;
 	}
-	
+
 	/**
 	 * Deduplicates the given list of files according to the Syncany chunk algorithm.
 	 * It quits once the multichunk reaches its maximum allowed size.
@@ -73,17 +80,17 @@ public class Deduper {
 		Chunk chunk = null;
 		MultiChunk multiChunk = null;
 		long totalMultiChunkSize = 0L;
-		
+
 		for (int i = firstFile; i < files.size(); i++) {
 			File file = files.get(i);
-			
+
 			// Filter ignored files
 			boolean fileAccepted = listener.onFileFilter(file);
-			
+
 			if (!fileAccepted) {
 				continue;
 			}
-			
+
 			// Decide whether to index the contents
 			boolean dedupContents = listener.onFileStart(file, i);
 
@@ -101,7 +108,7 @@ public class Deduper {
 					}
 
 					// new chunk
-					else {					
+					else {
 						// - Check if multichunk full
 						if (multiChunk != null && multiChunk.isFull()) {
 							totalMultiChunkSize += multiChunk.getSize();
@@ -115,19 +122,19 @@ public class Deduper {
 						if (multiChunk == null) {
 							MultiChunkId newMultiChunkId = listener.createNewMultiChunkId(chunk);
 							File multiChunkFile = listener.getMultiChunkFile(newMultiChunkId);
-							
-							multiChunk = multiChunker.createMultiChunk(newMultiChunkId, 
-								transformer.createOutputStream(new FileOutputStream(multiChunkFile)));
+
+							multiChunk = multiChunker.createMultiChunk(newMultiChunkId,
+									transformer.createOutputStream(new FileOutputStream(multiChunkFile)));
 
 							listener.onMultiChunkOpen(multiChunk);
 						}
 
 						// - Add chunk data
-						multiChunk.write(chunk);						
-						listener.onMultiChunkWrite(multiChunk, chunk);						
+						multiChunk.write(chunk);
+						listener.onMultiChunkWrite(multiChunk, chunk);
 					}
 
-					listener.onFileAddChunk(file, chunk);										
+					listener.onFileAddChunk(file, chunk);
 				}
 
 				// Closing file is necessary!
@@ -135,13 +142,13 @@ public class Deduper {
 
 			}
 
-			if (chunk != null) {			
+			if (chunk != null) {
 				listener.onFileEnd(file, chunk.getFileChecksum());
 			}
 			else {
 				listener.onFileEnd(file, null);
 			}
-			
+
 			// Reset chunk (if folder after chunk, the folder would have a checksum b/c of chunk.getFileChecksum())
 			chunk = null;
 
@@ -166,9 +173,9 @@ public class Deduper {
 
 			multiChunk = null;
 		}
-		
+
 		listener.onFinish();
 
 		return -1;
-	}	
+	}
 }
