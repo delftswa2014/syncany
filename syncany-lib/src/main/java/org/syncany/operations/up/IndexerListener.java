@@ -20,27 +20,22 @@ package org.syncany.operations.up;
 import java.util.Queue;
 
 import org.syncany.database.DatabaseVersion;
-import org.syncany.util.FilteredQueueAdderConsumer;
 
 /**
  * @author Jesse Donkervliet
  *
  */
-public class DatabaseVersionConsumer extends FilteredQueueAdderConsumer<DatabaseVersion> {
+public class IndexerListener {
+	
+	private Queue<DatabaseVersion> queue;
 
-	/**
-	 * @param queue
-	 */
-	public DatabaseVersionConsumer(Queue<DatabaseVersion> queue) {
-		super(queue);
+	public IndexerListener(Queue<DatabaseVersion> queue) {
+		this.queue = queue;
 	}
 
-	@Override
-	public boolean isValid(DatabaseVersion databaseVersion) {
-		if (databaseVersion == null) {
-			// end-of-stream poison object.
-			return true;
+	public void onNewDatabaseVersion(DatabaseVersion databaseVersion) {
+		if (databaseVersion == null || databaseVersion.getFileHistories().size() > 0) {
+			queue.add(databaseVersion);
 		}
-		return databaseVersion.getFileHistories().size() > 0;
 	}
 }
