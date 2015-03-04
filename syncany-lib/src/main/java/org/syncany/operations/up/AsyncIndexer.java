@@ -8,7 +8,6 @@ import java.util.Queue;
 import org.syncany.chunk.Deduper;
 import org.syncany.config.Config;
 import org.syncany.database.DatabaseVersion;
-import org.syncany.util.Consumer;
 
 /**
  * @author Tim Hegeman
