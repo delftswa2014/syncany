@@ -54,6 +54,14 @@ subprojects {
 		exclude '**/*TestSuite*'
 	}
 
+	task unitTest(type: Test, dependsOn: [testClasses], group: 'Verification') {
+		description = "All unit tests"
+		ignoreFailures = true
+		maxParallelForks = 2
+		testLogging { events 'started', 'passed'}
+		exclude '**/*TestSuite*', '**/integration/*'
+	}
+
 	task intTest(type: Test, dependsOn: [testClasses, integrationClasses], group: 'Verification') {
 		description = "All integration tests"
 		ignoreFailures = true
